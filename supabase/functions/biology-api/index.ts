@@ -19,7 +19,8 @@ async function passwordHash(password: string, secret: string) {
 const clean = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
 const publicUser = (u: any) => ({ id: u.id, login: u.login, name: u.name, class: u.class, role: u.role, must_change_password: !!u.must_change_password });
 const fail = (message: string): never => { throw new Error(message); };
-const allowedGames = ['truth', 'crossword'];
+const allowedGames = ['truth', 'crossword', 'own', 'wheel'];
+const gameTotals: Record<string, number> = { truth: 20, crossword: 10, own: 15, wheel: 5 };
 const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', wheel: 'Колесо фортуны', own: 'Своя игра', walk: 'Бродилка (старое задание)', quiz: 'Тест (старое задание)' };
 function temporaryPassword() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
@@ -130,7 +131,7 @@ async function action(body: any, token: string, ip: string) {
     if (u.role !== 'student') fail('Результат может отправить только ученик.');
     const homeworkId = String(body.homework_id ?? ''), topic = Number(body.topic_id), game = String(body.game ?? '');
     const score = Number(body.score), correct = Number(body.correct), wrong = Number(body.wrong);
-    if (!allowedGames.includes(game) || !Number.isInteger(topic) || !Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(correct) || correct < 0 || !Number.isInteger(wrong) || wrong < 0 || correct + wrong !== (game === 'truth' ? 20 : 10)) fail('Некорректный результат игры.');
+    if (!allowedGames.includes(game) || !Number.isInteger(topic) || !Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(correct) || correct < 0 || !Number.isInteger(wrong) || wrong < 0 || correct + wrong !== gameTotals[game]) fail('Некорректный результат игры.');
     const [homework] = await sql`select * from biology.homework where id=${homeworkId} and class=${u.class} and active and topic_id=${topic} and game=${game}`;
     if (!homework) fail('Это задание не назначено вашему классу или уже закрыто.');
     const expectedScore = Math.round(correct / (correct + wrong) * 100);

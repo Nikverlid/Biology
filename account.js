@@ -133,11 +133,11 @@
     const students = (dash.students || []).filter(s => s.class === classFilter);
     const results = (dash.results || []).filter(r => r.homework_class === classFilter);
     return `<section class="account-dashboard staff-dashboard"><div class="dash-heading"><div><p class="eyebrow">${session.user.role === 'admin' ? 'Администратор' : 'Учитель'} · биология</p><h2>${session.user.role === 'admin' ? 'Панель управления' : 'Кабинет учителя'}</h2></div><button class="account-button account-quiet" data-close>Закрыть</button></div>
-      <div class="staff-tabs"><label>Класс<select id="dash-class"><option ${classFilter === '5А' ? 'selected' : ''}>5А</option><option ${classFilter === '5Б' ? 'selected' : ''}>5Б</option></select></label><span>Учеников: <b>${students.length} / 20</b></span></div>
-      <div class="staff-columns"><section class="dash-card"><h3>Назначить игровое ДЗ</h3><p>Уже можно назначить «Правда или ложь» и кроссворд. Колесо фортуны и «Своя игра» появятся следующими.</p><form id="assign-form" class="account-form compact-form"><label>Тема<select name="topic">${lessonData.map((lesson, i) => `<option value="${i + 1}">§ ${i + 1} · ${esc(lesson.title)}</option>`).join('')}</select></label><label>Игра<select name="game"><option value="truth">Правда или ложь</option><option value="crossword">Кроссворд</option><option value="wheel" disabled>Колесо фортуны · скоро</option><option value="own" disabled>Своя игра · скоро</option></select></label><label class="class-b-date">Срок для 5Б<input type="date" name="due_date"></label><p class="form-hint">Для 5А срок автоматически устанавливается на ближайшую среду. Для 5Б можно указать дату вручную.</p><button class="account-primary" type="submit">Назначить ДЗ</button><p class="account-feedback" aria-live="polite"></p></form></section>
+      <p><a class="account-button" href="#topics" data-go-lesson>Открыть темы и игры для урока</a></p><div class="staff-tabs"><label>Класс<select id="dash-class"><option ${classFilter === '5А' ? 'selected' : ''}>5А</option><option ${classFilter === '5Б' ? 'selected' : ''}>5Б</option></select></label><span>Учеников: <b>${students.length} / 20</b></span></div>
+      <div class="staff-columns"><section class="dash-card"><h3>Назначить игровое ДЗ</h3><p>Выберите одну из четырёх игр. Для запуска на уроке откройте тему — учителю и администратору доступны все игры без назначения ДЗ.</p><form id="assign-form" class="account-form compact-form"><label>Тема<select name="topic">${lessonData.map((lesson, i) => `<option value="${i + 1}">§ ${i + 1} · ${esc(lesson.title)}</option>`).join('')}</select></label><label>Игра<select name="game"><option value="truth">Правда или ложь</option><option value="crossword">Кроссворд</option><option value="own">Своя игра</option><option value="wheel">Колесо фортуны</option></select></label><label class="class-b-date">Срок для 5Б<input type="date" name="due_date"></label><p class="form-hint">Для 5А срок автоматически устанавливается на ближайшую среду. Для 5Б можно указать дату вручную.</p><button class="account-primary" type="submit">Назначить ДЗ</button><p class="account-feedback" aria-live="polite"></p></form></section>
       <section class="dash-card"><h3>Ученики · ${esc(classFilter)}</h3>${session.user.role === 'admin' ? '<p class="form-hint">Ученики сами задают пароль при регистрации. Если ученик его забыл, здесь можно выдать временный пароль для восстановления или сразу установить новый постоянный.</p>' : ''}${session.user.role === 'admin' && adminNotice ? `<div class="admin-password-notice" role="status"><span>${esc(adminNotice.message)}</span>${adminNotice.password ? `<code>${esc(adminNotice.password)}</code><button class="account-button" type="button" data-copy-password>Копировать пароль</button>` : ''}</div>` : ''}${students.length ? `<div class="student-list">${students.map(s => `<div class="student-list-item"><span>${esc(s.name)}</span><div class="student-actions">${session.user.role === 'admin' ? `<button class="text-action" data-temp-password="${esc(s.id)}">Выдать временный пароль</button><button class="text-action" data-set-password="${esc(s.id)}">Задать постоянный пароль</button><button class="text-action" data-delete-student="${esc(s.id)}">Удалить</button>` : '<small>ученик</small>'}</div></div>`).join('')}</div>` : '<p class="empty-state">В этом классе пока никто не зарегистрировался.</p>'}</section></div>
       <section class="dash-section"><h3>Домашние задания · ${esc(classFilter)}</h3>${homes.length ? `<div class="assignment-list">${homes.map(h => `<article class="assignment-row"><div><strong>§ ${h.topic_id} · ${esc(lessonTitle(h.topic_id))}</strong><span>${esc(gamesLabel(h.game))} · назначено ${esc(formatDate(h.created_at?.slice(0, 10)))}</span></div><span>${esc(formatDate(h.due_date))}</span><button class="text-action" data-toggle-homework="${esc(h.id)}" data-active="${h.active}">${h.active ? 'Закрыть' : 'Открыть'}</button></article>`).join('')}</div>` : '<p class="empty-state">Заданий пока нет.</p>'}</section>
-      <section class="dash-section"><h3>Результаты учеников</h3>${results.length ? `<div class="table-wrap account-results"><table><thead><tr><th>Ученик</th><th>Тема / игра</th><th>Результат</th><th>Статус</th></tr></thead><tbody>${results.map(r => `<tr><td>${esc(r.student_name)} · ${esc(r.class)}</td><td>§ ${r.topic_id} · ${esc(gamesLabel(r.game))}</td><td>${r.score == null ? '—' : `${Number(r.score)}%`}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty-state">Результаты появятся здесь после того, как игры будут подключены и ученики начнут их проходить.</p>'}</section></section>`;
+      <section class="dash-section"><h3>Результаты учеников</h3>${results.length ? `<div class="table-wrap account-results"><table><thead><tr><th>Ученик</th><th>Тема / игра</th><th>Результат</th><th>Статус</th></tr></thead><tbody>${results.map(r => `<tr><td>${esc(r.student_name)} · ${esc(r.class)}</td><td>§ ${r.topic_id} · ${esc(gamesLabel(r.game))}</td><td>${r.score == null ? '—' : `${Number(r.score)}%`}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty-state">Результаты появятся здесь после выполнения учениками игровых ДЗ.</p>'}</section></section>`;
   }
 
   function drawDashboard() {
@@ -235,26 +235,47 @@
     const match = location.hash.match(/^#lesson-(\d+)/);
     const content = document.querySelector('.lesson-content');
     if (!match || !content) return;
-    content.querySelector('.biology-games-card')?.remove();
     const topic = Number(match[1]);
-    const assigned = session?.user?.role === 'student' ? (dash?.homework || []).filter(h => h.active && h.topic_id === topic && h.class === session.user.class) : [];
-    const card = document.createElement('section');
-    card.className = 'biology-games-card';
-    card.innerHTML = `<div class="game-lock-icon" aria-hidden="true">${assigned.length ? '✓' : '▣'}</div><div class="biology-games-content"><p class="eyebrow">Игры по теме</p><h2>${assigned.length ? 'Домашнее задание' : 'Игровые задания закрыты'}</h2>${assigned.length ? assigned.map((homework,i)=>`<article class="assigned-game"><div><strong>${esc(gamesLabel(homework.game))}</strong><small>Срок: ${esc(formatDate(homework.due_date))}</small></div>${['truth','crossword'].includes(homework.game)?`<button class="account-primary" type="button" data-start-biology-game="${i}">Начать</button>`:'<span>Игра появится позже</span>'}<div class="biology-game-play" data-game-root="${i}"></div></article>`).join('') : `<p>${session?.user?.role === 'student' ? 'Текст темы открыт. Учительские игры появятся здесь после назначения домашнего задания.' : 'Темы открыты всем. Игры доступны ученикам после назначения учителем.'}</p>`}<p class="form-hint">Сейчас доступны «Правда или ложь» и кроссворд. Колесо фортуны и «Своя игра» будут добавлены позже.</p></div>`;
-    card.querySelectorAll('[data-start-biology-game]').forEach(button=>button.addEventListener('click',()=>{
-      const homework=assigned[Number(button.dataset.startBiologyGame)];
-      const root=card.querySelector(`[data-game-root="${button.dataset.startBiologyGame}"]`);
-      button.hidden=true;
-      const finish=async result=>{
-        const status=root.querySelector('.game-save-status');
+    const staff = ['teacher', 'admin'].includes(session?.user?.role);
+    const assigned = session?.user?.role === 'student' ? (dash?.homework || []).filter(h => h.active && Number(h.topic_id) === topic && h.class === session.user.class) : [];
+    const layout=content.closest('.lesson-layout');
+    const text=content.querySelector('.lesson-text-panel');
+    let hub=content.querySelector('.lesson-activities');
+    // Anchor navigation should preserve the text and ongoing games.
+    const identity=`${session?.user?.id || 'guest'}:${staff}:${assigned.map(h=>h.id).join(',')}`;
+    if(hub?.dataset.identity===identity){
+      if(/\/(section-\d+|terms|summary)$/.test(location.hash))hub.showText();
+      return;
+    }
+    hub?.remove();
+    hub=document.createElement('section');
+    hub.className='lesson-activities';hub.dataset.identity=identity;
+    const games=[['truth','Правда или ложь','20 утверждений','✓ / ×'],['crossword','Кроссворд','10 слов в каждом варианте','▦'],['own','Своя игра','Табло вопросов и очки','100'],['wheel','Колесо фортуны','Барабан, буквы и слова','◉']];
+    const canPlay=game=>staff||assigned.some(h=>h.game===game);
+    hub.innerHTML=`<div class="lesson-choice"><p class="eyebrow">Выбери занятие</p><div class="activity-grid"><button class="activity-tile activity-text" type="button" data-activity="text"><span class="activity-symbol" aria-hidden="true">Аа</span><strong>Текст темы</strong><small>Объяснение, термины и главное</small><b>Открыть →</b></button>${games.map(([key,name,desc,icon])=>`<button class="activity-tile" type="button" data-activity="${key}" ${canPlay(key)?'':'disabled'}><span class="activity-symbol" aria-hidden="true">${icon}</span><strong>${name}</strong><small>${desc}</small><b>${canPlay(key)?(staff?'Запустить →':'Выполнить ДЗ →'):'Закрыто · ждём ДЗ'}</b></button>`).join('')}</div><p class="form-hint">${staff?'Все игры открыты для проверки и урока. В «Своей игре» и «Колесе фортуны» можно ввести имена участников или команд.':session?'Текст темы открыт всегда. Игры открывает учитель, назначая домашнее задание.':'Текст темы открыт всем. Войди в аккаунт, чтобы открыть назначенные игры.'}</p></div><button class="account-button activity-back" type="button" hidden>← К выбору занятия</button><div class="activity-play" hidden></div>`;
+    content.querySelector('.lesson-intro').after(hub);
+    const choice=hub.querySelector('.lesson-choice'),play=hub.querySelector('.activity-play'),back=hub.querySelector('.activity-back');
+    function menu(){
+      choice.hidden=false;back.hidden=true;play.hidden=true;play.replaceChildren();text.hidden=true;layout.classList.add('is-activity');
+    }
+    hub.showText=()=>{choice.hidden=true;back.hidden=false;play.hidden=true;play.replaceChildren();text.hidden=false;layout.classList.remove('is-activity');};
+    back.onclick=()=>{menu();hub.querySelector('[data-activity="text"]').focus();};
+    hub.querySelector('[data-activity="text"]').onclick=hub.showText;
+    hub.querySelectorAll('[data-activity]:not([data-activity="text"])').forEach(button=>button.addEventListener('click',()=>{
+      const game=button.dataset.activity;if(!canPlay(game))return;
+      choice.hidden=true;back.hidden=false;text.hidden=true;play.hidden=false;layout.classList.add('is-activity');
+      const homework=staff?{id:null,classroom:true}: {...assigned.find(h=>h.game===game),playerName:session.user.name};
+      const finish=staff?()=>{const status=play.querySelector('.game-save-status');if(status)status.textContent='Проверка игры: результат не записывается ученикам.';}:async result=>{
+        const status=play.querySelector('.game-save-status');
         if(status)status.textContent='Сохраняю результат…';
-        try{await api('submit_result',{homework_id:result.homeworkId,topic_id:result.topicId,game:result.game,score:result.score,correct:result.correct,wrong:result.wrong});dash=await api('dashboard');if(status)status.textContent='Результат сохранён. Лучший результат по этому заданию попадёт в кабинет.';}
+        try{await api('submit_result',{homework_id:result.homeworkId,topic_id:result.topicId,game:result.game,score:result.score,correct:result.correct,wrong:result.wrong});dash=await api('dashboard');if(status)status.textContent='Результат сохранён. В кабинете виден лучший результат по этому заданию.';}
         catch(error){if(status)status.textContent=`Результат не удалось сохранить: ${error.message}`;}
       };
-      if(homework.game==='truth')window.BIOLOGY_GAMES.statementGame(topic,root,homework,finish);
-      else if(homework.game==='crossword')window.BIOLOGY_GAMES.crosswordGame(topic,root,homework,finish);
+      const methods={truth:'statementGame',crossword:'crosswordGame',own:'ownGame',wheel:'wheelGame'};
+      window.BIOLOGY_GAMES[methods[game]](topic,play,homework,finish);
+      back.focus({preventScroll:true});
     }));
-    content.append(card);
+    if(/\/(section-\d+|terms|summary)$/.test(location.hash))hub.showText();else menu();
   }
 
   document.addEventListener('click', event => {
@@ -266,4 +287,5 @@
   window.addEventListener('keydown', event => { if (event.key === 'Escape' && modal.open) modal.close(); });
   header();
   setTimeout(renderGameGate, 0);
+  if(session)api('dashboard').then(data=>{dash=data;renderGameGate();}).catch(()=>{});
 })();

@@ -74,7 +74,7 @@
       }
       return {word,dir,r,c,cells,crosses};
     }
-    const first=words[0];placements.push({word:first.word,dir:'across',r:0,c:0,cells:Array.from(first.word,(ch,i)=>({r:0,c:i,ch})),crosses:0});
+    const first=words[0];placements.push({word:first.word,clue:first.clue,dir:'across',r:0,c:0,cells:Array.from(first.word,(ch,i)=>({r:0,c:i,ch})),crosses:0});
     for(const cell of placements[0].cells)grid.set(key(cell.r,cell.c),{ch:cell.ch,across:true,down:false});
     for(const item of words.slice(1)){
       const options=[];
@@ -85,7 +85,7 @@
         const found=attempt(item.word,dir,r,c);if(found)options.push(found);
       }
       const placed=options.length?options[Math.floor(Math.random()*options.length)]:{word:item.word,dir:'across',r:Math.max(...[...grid.keys()].map(k=>Number(k.split(',')[0])))+3,c:0,cells:Array.from(item.word,(ch,i)=>({r:Math.max(...[...grid.keys()].map(k=>Number(k.split(',')[0])))+3,c:i,ch})),crosses:0};
-      placements.push(placed);
+      placed.clue=item.clue;placements.push(placed);
       for(const cell of placed.cells){const old=grid.get(key(cell.r,cell.c))||{ch:cell.ch,across:false,down:false};old[placed.dir]=true;grid.set(key(cell.r,cell.c),old);}
     }
     const gridKeys=[...grid.keys()],minR=Math.min(...gridKeys.map(k=>Number(k.split(',')[0]))),maxR=Math.max(...gridKeys.map(k=>Number(k.split(',')[0]))),minC=Math.min(...gridKeys.map(k=>Number(k.split(',')[1]))),maxC=Math.max(...gridKeys.map(k=>Number(k.split(',')[1])));
@@ -94,7 +94,7 @@
 
   function crosswordGame(lessonId,root,homework,onFinish){
     const selected=crosswordVariant(lessonId);
-    const puzzle=makeGrid(selected.words.filter(x=>x.answer.length>=3));
+    const puzzle=makeGrid(selected.words.filter(x=>x.answer.length>=3).map(x=>({word:x.answer,clue:x.clue})));
     const number=new Map(puzzle.placements.map((p,i)=>[`${p.r},${p.c}`,i+1]));
     const cells=[];
     for(let r=puzzle.minR;r<=puzzle.maxR;r++)for(let c=puzzle.minC;c<=puzzle.maxC;c++){
