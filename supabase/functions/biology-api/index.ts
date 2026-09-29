@@ -19,8 +19,8 @@ async function passwordHash(password: string, secret: string) {
 const clean = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
 const publicUser = (u: any) => ({ id: u.id, login: u.login, name: u.name, class: u.class, role: u.role, must_change_password: !!u.must_change_password });
 const fail = (message: string): never => { throw new Error(message); };
-const allowedGames = ['truth', 'crossword', 'walk', 'quiz'];
-const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', walk: 'Бродилка', quiz: 'Тест' };
+const allowedGames = ['truth', 'crossword'];
+const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', wheel: 'Колесо фортуны', own: 'Своя игра', walk: 'Бродилка (старое задание)', quiz: 'Тест (старое задание)' };
 function temporaryPassword() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -125,6 +125,24 @@ async function action(body: any, token: string, ip: string) {
     if (!staff) fail('Нет доступа.');
     await sql`update biology.homework set active=${!!body.active} where id=${String(body.id)}`;
     return { ok: true };
+  }
+  if (body.action === 'submit_result') {
+    if (u.role !== 'student') fail('Результат может отправить только ученик.');
+    const homeworkId = String(body.homework_id ?? ''), topic = Number(body.topic_id), game = String(body.game ?? '');
+    const score = Number(body.score), correct = Number(body.correct), wrong = Number(body.wrong);
+    if (!allowedGames.includes(game) || !Number.isInteger(topic) || !Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(correct) || correct < 0 || !Number.isInteger(wrong) || wrong < 0 || correct + wrong !== (game === 'truth' ? 20 : 10)) fail('Некорректный результат игры.');
+    const [homework] = await sql`select * from biology.homework where id=${homeworkId} and class=${u.class} and active and topic_id=${topic} and game=${game}`;
+    if (!homework) fail('Это задание не назначено вашему классу или уже закрыто.');
+    const expectedScore = Math.round(correct / (correct + wrong) * 100);
+    if (score !== expectedScore) fail('Результат не совпадает с числом верных ответов.');
+    const [result] = await sql`insert into biology.results(homework_id,student_id,status,score,correct,wrong,started_at,completed_at)
+      values(${homework.id},${u.id},'completed',${score},${correct},${wrong},now(),now())
+      on conflict(homework_id,student_id) do update set
+        score=greatest(biology.results.score,excluded.score),
+        correct=case when excluded.score>=biology.results.score then excluded.correct else biology.results.correct end,
+        wrong=case when excluded.score>=biology.results.score then excluded.wrong else biology.results.wrong end,
+        status='completed',completed_at=now() returning *`;
+    return { ok: true, result };
   }
   if (body.action === 'delete_student') {
     if (u.role !== 'admin') fail('Нет доступа.');
