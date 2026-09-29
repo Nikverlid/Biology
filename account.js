@@ -209,6 +209,7 @@
   async function refreshDashboard() {
     dash = await api('dashboard');
     drawDashboard();
+    renderGameGate();
   }
 
   async function openDashboard() {
