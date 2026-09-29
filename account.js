@@ -1,0 +1,196 @@
+(() => {
+  const config = window.BIOLOGY_CONFIG;
+  const lessonData = typeof LESSONS !== 'undefined' ? LESSONS : [];
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const stored = (() => { try { return JSON.parse(localStorage.getItem('biologyAccount') || 'null'); } catch { return null; } })();
+  let session = stored?.token ? stored : null;
+  let authRole = 'student';
+  let dash = null;
+  let busy = false;
+
+  const controls = document.createElement('div');
+  controls.className = 'account-controls';
+  document.querySelector('.topbar').append(controls);
+  const modal = document.createElement('dialog');
+  modal.className = 'account-dialog';
+  modal.setAttribute('aria-labelledby', 'account-title');
+  document.body.append(modal);
+
+  async function api(action, data = {}) {
+    const response = await fetch(config.apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: config.apiKey, Authorization: `Bearer ${session?.token || ''}` },
+      body: JSON.stringify({ action, ...data })
+    });
+    const result = await response.json();
+    if (!response.ok || result.error) throw new Error(result.error || 'Не удалось выполнить запрос.');
+    return result;
+  }
+
+  function header() {
+    controls.innerHTML = session
+      ? `<span class="account-name">${esc(session.user.name)}${session.user.class ? ` · ${esc(session.user.class)}` : ''}</span>${session.user.role === 'student' ? '<button class="account-button account-homework" data-open-dashboard>ДЗ</button>' : '<button class="account-button" data-open-dashboard>Кабинет</button>'}<button class="account-button account-quiet" data-logout>Выйти</button>`
+      : '<button class="account-button" data-open-auth>Войти</button>';
+  }
+
+  function openAuth(mode = 'login') {
+    authRole = 'student';
+    drawAuth(mode);
+    modal.showModal();
+  }
+
+  function drawAuth(mode = 'login', error = '') {
+    modal.innerHTML = `<div class="account-shell"><button class="dialog-close" type="button" aria-label="Закрыть" data-close>×</button>
+      <p class="eyebrow">Биология · 5 класс</p><h2 id="account-title">${mode === 'register' ? 'Регистрация ученика' : 'Вход в аккаунт'}</h2>
+      <div class="account-tabs" role="tablist" aria-label="Тип аккаунта">
+        <button type="button" data-role="student" class="${authRole === 'student' ? 'selected' : ''}">Ученик</button>
+        ${mode === 'register' ? '' : `<button type="button" data-role="teacher" class="${authRole === 'teacher' ? 'selected' : ''}">Учитель</button><button type="button" data-role="admin" class="${authRole === 'admin' ? 'selected' : ''}">Администратор</button>`}
+      </div>
+      ${mode === 'register' ? `<form id="account-form" class="account-form"><label>Фамилия<input name="surname" required minlength="2" autocomplete="family-name"></label><label>Имя<input name="first" required minlength="2" autocomplete="given-name"></label><label>Класс<select name="class" required><option value="5А">5А</option><option value="5Б">5Б</option></select></label><label>Пароль<input name="password" type="password" required minlength="6" maxlength="128" autocomplete="new-password"></label><p class="form-hint">В каждом классе можно зарегистрировать не более 20 учеников.</p><button class="account-primary" type="submit">Зарегистрироваться</button></form>` : `<form id="account-form" class="account-form">${authRole === 'student' ? '<label>Фамилия<input name="surname" required autocomplete="family-name"></label><label>Имя<input name="first" required autocomplete="given-name"></label><label>Класс<select name="class"><option value="5А">5А</option><option value="5Б">5Б</option></select></label>' : ''}<label>Пароль<input name="password" type="password" required maxlength="128" autocomplete="current-password"></label><button class="account-primary" type="submit">Войти</button></form>`}
+      ${error ? `<p class="account-error" role="alert">${esc(error)}</p>` : ''}<p class="account-switch">${mode === 'register' ? 'Уже зарегистрированы? <button type="button" data-mode="login">Войти</button>' : authRole === 'student' ? 'Нет аккаунта? <button type="button" data-mode="register">Зарегистрироваться</button>' : ''}</p>
+    </div>`;
+    modal.querySelector('[data-close]')?.addEventListener('click', () => modal.close());
+    modal.querySelectorAll('[data-role]').forEach(button => button.addEventListener('click', () => { authRole = button.dataset.role; drawAuth(mode); }));
+    modal.querySelector('[data-mode]')?.addEventListener('click', () => drawAuth(modal.querySelector('[data-mode]').dataset.mode));
+    modal.querySelector('#account-form')?.addEventListener('submit', submitAuth);
+  }
+
+  async function submitAuth(event) {
+    event.preventDefault();
+    if (busy) return;
+    busy = true;
+    const form = new FormData(event.currentTarget);
+    const isRegistration = modal.querySelector('[data-mode]')?.dataset.mode === 'login' && modal.querySelector('#account-title')?.textContent === 'Регистрация ученика';
+    const details = Object.fromEntries(form.entries());
+    try {
+      const result = await api(isRegistration ? 'register' : 'login', isRegistration ? details : { ...details, role: authRole });
+      session = { token: result.token, user: result.user };
+      localStorage.setItem('biologyAccount', JSON.stringify(session));
+      dash = null;
+      header();
+      modal.close();
+      if (location.hash.startsWith('#lesson-')) renderGameGate();
+      await openDashboard();
+    } catch (error) {
+      drawAuth(isRegistration ? 'register' : 'login', error.message);
+    } finally { busy = false; }
+  }
+
+  function formatDate(value) {
+    if (!value) return 'Дата урока для этого класса пока не задана';
+    const date = new Date(`${value}T12:00:00`);
+    return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: 'Asia/Yekaterinburg' }).format(date);
+  }
+
+  function todayLocal() {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yekaterinburg', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
+    return `${parts.find(p => p.type === 'year').value}-${parts.find(p => p.type === 'month').value}-${parts.find(p => p.type === 'day').value}`;
+  }
+
+  function lessonTitle(id) { return lessonData[Number(id) - 1]?.title || `Тема ${id}`; }
+  function gamesLabel(game) { return dash?.gameNames?.[game] || ({ truth: 'Правда или ложь', crossword: 'Кроссворд', walk: 'Бродилка', quiz: 'Тест' }[game] || 'Игра'); }
+
+  function studentDashboard() {
+    const homes = (dash.homework || []).filter(h => h.active);
+    const upcoming = homes.find(h => !h.due_date || h.due_date >= todayLocal()) || homes[0];
+    const results = dash.results || [];
+    return `<section class="account-dashboard student-dashboard"><div class="dash-heading"><div><p class="eyebrow">Ученический кабинет · ${esc(session.user.class)}</p><h2>Домашние задания</h2><p>Темы курса доступны всем. Учительские игровые задания появятся здесь.</p></div><button class="account-button account-quiet" data-close>Закрыть</button></div>
+      <div class="dash-grid"><article class="dash-card dash-next"><span class="dash-label">Ближайшее ДЗ</span>${upcoming ? `<h3>${esc(gamesLabel(upcoming.game))}</h3><p>Тема ${upcoming.topic_id}: ${esc(lessonTitle(upcoming.topic_id))}</p><p class="due-date">Ближайший урок: ${esc(formatDate(upcoming.due_date))}</p><a class="account-primary link-button" href="#lesson-${upcoming.topic_id}" data-go-lesson>Открыть тему</a><p class="form-hint">Игры появятся позже; задание уже отображается в кабинете.</p>` : '<h3>Пока нет назначенных заданий</h3><p>Когда учитель задаст игру, она появится в этом разделе.</p>'}</article>
+      <article class="dash-card"><span class="dash-label">Расписание</span>${session.user.class === '5А' ? '<h3>Биология — каждую среду</h3><p>Домашнее задание привязано к ближайшему уроку.</p>' : '<h3>5Б</h3><p>Дни уроков для этого класса пока не указаны.</p>'}</article></div>
+      <section class="dash-section"><h3>Все задания</h3>${homes.length ? `<div class="assignment-list">${homes.map(h => `<article class="assignment-row"><div><strong>${esc(gamesLabel(h.game))}</strong><span>§ ${h.topic_id} · ${esc(lessonTitle(h.topic_id))}</span></div><span>${esc(formatDate(h.due_date))}</span><a href="#lesson-${h.topic_id}" data-go-lesson>Тема</a></article>`).join('')}</div>` : '<p class="empty-state">Назначенных заданий пока нет.</p>'}</section>
+      <section class="dash-section"><h3>Результаты</h3>${results.length ? `<div class="assignment-list">${results.map(r => `<article class="assignment-row"><div><strong>§ ${r.topic_id}: ${esc(lessonTitle(r.topic_id))}</strong><span>${esc(gamesLabel(r.game))}</span></div><span>${r.score == null ? 'Ожидает игры' : `${Number(r.score)}%`}</span><span>${esc(r.status)}</span></article>`).join('')}</div>` : '<p class="empty-state">Результатов пока нет. Они появятся после выполнения первых игр.</p>'}</section></section>`;
+  }
+
+  function teacherDashboard() {
+    const classFilter = modal.querySelector('#dash-class')?.value || '5А';
+    const homes = (dash.homework || []).filter(h => h.class === classFilter);
+    const students = (dash.students || []).filter(s => s.class === classFilter);
+    const results = (dash.results || []).filter(r => r.homework_class === classFilter);
+    return `<section class="account-dashboard staff-dashboard"><div class="dash-heading"><div><p class="eyebrow">${session.user.role === 'admin' ? 'Администратор' : 'Учитель'} · биология</p><h2>${session.user.role === 'admin' ? 'Панель управления' : 'Кабинет учителя'}</h2></div><button class="account-button account-quiet" data-close>Закрыть</button></div>
+      <div class="staff-tabs"><label>Класс<select id="dash-class"><option ${classFilter === '5А' ? 'selected' : ''}>5А</option><option ${classFilter === '5Б' ? 'selected' : ''}>5Б</option></select></label><span>Учеников: <b>${students.length} / 20</b></span></div>
+      <div class="staff-columns"><section class="dash-card"><h3>Назначить игровое ДЗ</h3><p>Сейчас игры ещё не подключены. Назначения и место для результатов уже подготовлены.</p><form id="assign-form" class="account-form compact-form"><label>Тема<select name="topic">${lessonData.map((lesson, i) => `<option value="${i + 1}">§ ${i + 1} · ${esc(lesson.title)}</option>`).join('')}</select></label><label>Игра<select name="game"><option value="truth">Правда или ложь</option><option value="crossword">Кроссворд</option><option value="walk">Бродилка</option><option value="quiz">Тест</option></select></label><label class="class-b-date">Срок для 5Б<input type="date" name="due_date"></label><p class="form-hint">Для 5А срок автоматически устанавливается на ближайшую среду. Для 5Б можно указать дату вручную.</p><button class="account-primary" type="submit">Назначить ДЗ</button><p class="account-feedback" aria-live="polite"></p></form></section>
+      <section class="dash-card"><h3>Ученики · ${esc(classFilter)}</h3>${students.length ? `<div class="student-list">${students.map(s => `<div><span>${esc(s.name)}</span><small>${session.user.role === 'admin' ? `<button class="text-action" data-delete-student="${esc(s.id)}">Удалить</button>` : 'ученик'}</small></div>`).join('')}</div>` : '<p class="empty-state">В этом классе пока никто не зарегистрировался.</p>'}</section></div>
+      <section class="dash-section"><h3>Домашние задания · ${esc(classFilter)}</h3>${homes.length ? `<div class="assignment-list">${homes.map(h => `<article class="assignment-row"><div><strong>§ ${h.topic_id} · ${esc(lessonTitle(h.topic_id))}</strong><span>${esc(gamesLabel(h.game))} · назначено ${esc(formatDate(h.created_at?.slice(0, 10)))}</span></div><span>${esc(formatDate(h.due_date))}</span><button class="text-action" data-toggle-homework="${esc(h.id)}" data-active="${h.active}">${h.active ? 'Закрыть' : 'Открыть'}</button></article>`).join('')}</div>` : '<p class="empty-state">Заданий пока нет.</p>'}</section>
+      <section class="dash-section"><h3>Результаты учеников</h3>${results.length ? `<div class="table-wrap account-results"><table><thead><tr><th>Ученик</th><th>Тема / игра</th><th>Результат</th><th>Статус</th></tr></thead><tbody>${results.map(r => `<tr><td>${esc(r.student_name)} · ${esc(r.class)}</td><td>§ ${r.topic_id} · ${esc(gamesLabel(r.game))}</td><td>${r.score == null ? '—' : `${Number(r.score)}%`}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty-state">Результаты появятся здесь после того, как игры будут подключены и ученики начнут их проходить.</p>'}</section></section>`;
+  }
+
+  function drawDashboard() {
+    const dashboard = session.user.role === 'student' ? studentDashboard() : teacherDashboard();
+    modal.innerHTML = `<div class="account-shell dashboard-shell"><button class="dialog-close" type="button" aria-label="Закрыть" data-close>×</button>${dashboard}</div>`;
+    modal.querySelector('[data-close]')?.addEventListener('click', () => modal.close());
+    modal.querySelectorAll('[data-go-lesson]').forEach(link => link.addEventListener('click', () => modal.close()));
+    modal.querySelector('#dash-class')?.addEventListener('change', () => drawDashboard());
+    modal.querySelector('#assign-form')?.addEventListener('submit', assignHomework);
+    modal.querySelectorAll('[data-toggle-homework]').forEach(button => button.addEventListener('click', async () => {
+      try { await api('toggle_homework', { id: button.dataset.toggleHomework, active: button.dataset.active !== 'true' }); await refreshDashboard(); }
+      catch (error) { alert(error.message); }
+    }));
+    modal.querySelectorAll('[data-delete-student]').forEach(button => button.addEventListener('click', async () => {
+      if (!confirm('Удалить аккаунт ученика и его результаты?')) return;
+      try { await api('delete_student', { id: button.dataset.deleteStudent }); await refreshDashboard(); }
+      catch (error) { alert(error.message); }
+    }));
+  }
+
+  async function assignHomework(event) {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector('button[type="submit"]');
+    const feedback = event.currentTarget.querySelector('.account-feedback');
+    button.disabled = true;
+    try {
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+      const cls = modal.querySelector('#dash-class').value;
+      await api('assign', { ...data, class: cls, topic: Number(data.topic) });
+      feedback.textContent = `Задание назначено классу ${cls}.`;
+      await refreshDashboard();
+    } catch (error) { feedback.textContent = error.message; }
+    finally { button.disabled = false; }
+  }
+
+  async function refreshDashboard() {
+    dash = await api('dashboard');
+    drawDashboard();
+  }
+
+  async function openDashboard() {
+    if (!session) return openAuth();
+    modal.innerHTML = '<div class="account-shell"><p>Загружаю кабинет…</p></div>';
+    if (!modal.open) modal.showModal();
+    try { await refreshDashboard(); }
+    catch (error) {
+      if (/Войдите в аккаунт/.test(error.message)) { session = null; dash = null; localStorage.removeItem('biologyAccount'); header(); }
+      modal.innerHTML = `<div class="account-shell"><button class="dialog-close" data-close aria-label="Закрыть">×</button><p class="account-error">${esc(error.message)}</p></div>`;
+      modal.querySelector('[data-close]')?.addEventListener('click', () => modal.close());
+    }
+  }
+
+  async function logout() {
+    try { await api('logout'); } catch { /* Local sign-out still clears this device. */ }
+    localStorage.removeItem('biologyAccount'); session = null; dash = null; header();
+    if (modal.open) modal.close();
+    renderGameGate();
+  }
+
+  function renderGameGate() {
+    const match = location.hash.match(/^#lesson-(\d+)/);
+    const content = document.querySelector('.lesson-content');
+    if (!match || !content) return;
+    content.querySelector('.biology-games-card')?.remove();
+    const topic = Number(match[1]);
+    const assigned = session?.user?.role === 'student' && (dash?.homework || []).find(h => h.active && h.topic_id === topic && h.class === session.user.class);
+    const card = document.createElement('section');
+    card.className = 'biology-games-card';
+    card.innerHTML = `<div class="game-lock-icon" aria-hidden="true">${assigned ? '✓' : '▣'}</div><div><p class="eyebrow">Игры по теме</p><h2>${assigned ? 'Учитель назначил игровое ДЗ' : 'Игровые задания закрыты'}</h2><p>${assigned ? `${esc(gamesLabel(assigned.game))} · срок: ${esc(formatDate(assigned.due_date))}. Сами игры будут подключены позже.` : session?.user?.role === 'student' ? 'Текст темы открыт. Игра появится здесь, когда учитель задаст её как домашнее задание.' : 'Темы курса открыты всем. Игры появятся позже и будут доступны ученикам после назначения учителем.'}</p>${assigned ? '<button class="account-button" disabled>Игра появится позже</button>' : ''}</div>`;
+    content.append(card);
+  }
+
+  document.addEventListener('click', event => {
+    if (event.target.closest('[data-open-auth]')) openAuth();
+    else if (event.target.closest('[data-open-dashboard]')) openDashboard();
+    else if (event.target.closest('[data-logout]')) logout();
+  });
+  window.addEventListener('hashchange', () => { setTimeout(renderGameGate, 0); });
+  window.addEventListener('keydown', event => { if (event.key === 'Escape' && modal.open) modal.close(); });
+  header();
+  setTimeout(renderGameGate, 0);
+})();
