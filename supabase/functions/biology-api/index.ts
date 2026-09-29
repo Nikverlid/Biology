@@ -17,10 +17,15 @@ async function passwordHash(password: string, secret: string) {
   return hex(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: encoder.encode(secret), iterations: 210000 }, key, 256));
 }
 const clean = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
-const publicUser = (u: any) => ({ id: u.id, login: u.login, name: u.name, class: u.class, role: u.role });
+const publicUser = (u: any) => ({ id: u.id, login: u.login, name: u.name, class: u.class, role: u.role, must_change_password: !!u.must_change_password });
 const fail = (message: string): never => { throw new Error(message); };
 const allowedGames = ['truth', 'crossword', 'walk', 'quiz'];
 const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', walk: 'Бродилка', quiz: 'Тест' };
+function temporaryPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+}
 
 function nextWednesday() {
   const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Yekaterinburg', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date());
@@ -83,6 +88,17 @@ async function action(body: any, token: string, ip: string) {
   if (!u) fail('Войдите в аккаунт заново.');
   const staff = ['teacher', 'admin'].includes(u.role);
   if (body.action === 'logout') { await sql`delete from biology.sessions where token_hash=${tokenHash}`; return { ok: true }; }
+  if (u.must_change_password && body.action !== 'change_permanent_password') fail('Сначала задайте постоянный пароль.');
+  if (body.action === 'change_permanent_password') {
+    const password = String(body.password ?? ''), confirm = String(body.confirm ?? '');
+    if (u.role !== 'student' || !u.must_change_password) fail('Смена постоянного пароля сейчас не требуется.');
+    if (password.length < 6 || password.length > 128) fail('Пароль должен содержать от 6 до 128 символов.');
+    if (password !== confirm) fail('Пароли не совпадают.');
+    const s = salt(), h = await passwordHash(password, s);
+    const [updated] = await sql`update biology.accounts set password_hash=${h},salt=${s},must_change_password=false where id=${u.id} returning *`;
+    await sql`delete from biology.sessions where account_id=${u.id} and token_hash<>${tokenHash}`;
+    return { ok: true, user: publicUser(updated) };
+  }
   if (body.action === 'dashboard') {
     const homework = staff
       ? await sql`select h.*,a.name as assigned_by from biology.homework h left join biology.accounts a on a.id=h.created_by order by h.created_at desc`
@@ -114,6 +130,22 @@ async function action(body: any, token: string, ip: string) {
     if (u.role !== 'admin') fail('Нет доступа.');
     await sql`delete from biology.accounts where id=${String(body.id)} and role='student'`;
     return { ok: true };
+  }
+  if (body.action === 'manage_student_password') {
+    if (u.role !== 'admin') fail('Нет доступа.');
+    const id = String(body.id ?? ''), mode = String(body.mode ?? '');
+    const [student] = await sql`select * from biology.accounts where id=${id} and role='student'`;
+    if (!student) fail('Ученик не найден.');
+    let password = '';
+    if (mode === 'temporary') password = temporaryPassword();
+    else if (mode === 'permanent') {
+      password = String(body.password ?? '');
+      if (password.length < 6 || password.length > 128) fail('Пароль должен содержать от 6 до 128 символов.');
+    } else fail('Неизвестный режим смены пароля.');
+    const s = salt(), h = await passwordHash(password, s), mustChange = mode === 'temporary';
+    await sql`update biology.accounts set password_hash=${h},salt=${s},must_change_password=${mustChange} where id=${id}`;
+    await sql`delete from biology.sessions where account_id=${id}`;
+    return mode === 'temporary' ? { ok: true, temporary_password: password } : { ok: true };
   }
   fail('Неизвестное действие.');
 }

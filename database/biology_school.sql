@@ -8,8 +8,10 @@ create table if not exists biology.accounts (
  role text not null check (role in ('student','teacher','admin')),
  password_hash text not null,
  salt text not null,
+ must_change_password boolean not null default false,
  created_at timestamptz not null default now()
 );
+alter table biology.accounts add column if not exists must_change_password boolean not null default false;
 create unique index if not exists biology_student_name_class_unique on biology.accounts (lower(name), class) where role='student';
 create table if not exists biology.sessions (
  token_hash text primary key,

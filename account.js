@@ -7,6 +7,7 @@
   let authRole = 'student';
   let dash = null;
   let busy = false;
+  let adminNotice = null;
 
   const controls = document.createElement('div');
   controls.className = 'account-controls';
@@ -68,6 +69,10 @@
       localStorage.setItem('biologyAccount', JSON.stringify(session));
       dash = null;
       header();
+      if (session.user.must_change_password) {
+        drawRequiredPassword();
+        return;
+      }
       modal.close();
       if (location.hash.startsWith('#lesson-')) renderGameGate();
       await openDashboard();
@@ -75,6 +80,27 @@
       drawAuth(isRegistration ? 'register' : 'login', error.message);
     } finally { busy = false; }
   }
+
+  function drawRequiredPassword(error = '') {
+    modal.innerHTML = `<div class="account-shell"><p class="eyebrow">Первый вход</p><h2 id="account-title">Задай постоянный пароль</h2><p>Временный пароль больше не понадобится. Придумай новый пароль длиной от 6 символов.</p><form id="permanent-password-form" class="account-form"><label>Новый пароль<input name="password" type="password" required minlength="6" maxlength="128" autocomplete="new-password"></label><label>Повтори пароль<input name="confirm" type="password" required minlength="6" maxlength="128" autocomplete="new-password"></label><button class="account-primary" type="submit">Сохранить пароль</button></form>${error ? `<p class="account-error" role="alert">${esc(error)}</p>` : ''}</div>`;
+    modal.querySelector('#permanent-password-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (busy) return;
+      const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+      if (data.password !== data.confirm) { drawRequiredPassword('Пароли не совпадают.'); return; }
+      busy = true;
+      try {
+        const result = await api('change_permanent_password', data);
+        session.user = result.user;
+        localStorage.setItem('biologyAccount', JSON.stringify(session));
+        modal.close();
+        await openDashboard();
+      } catch (error) { drawRequiredPassword(error.message); }
+      finally { busy = false; }
+    });
+  }
+
+  modal.addEventListener('close', () => { adminNotice = null; });
 
   function formatDate(value) {
     if (!value) return 'Дата урока для этого класса пока не задана';
@@ -109,7 +135,7 @@
     return `<section class="account-dashboard staff-dashboard"><div class="dash-heading"><div><p class="eyebrow">${session.user.role === 'admin' ? 'Администратор' : 'Учитель'} · биология</p><h2>${session.user.role === 'admin' ? 'Панель управления' : 'Кабинет учителя'}</h2></div><button class="account-button account-quiet" data-close>Закрыть</button></div>
       <div class="staff-tabs"><label>Класс<select id="dash-class"><option ${classFilter === '5А' ? 'selected' : ''}>5А</option><option ${classFilter === '5Б' ? 'selected' : ''}>5Б</option></select></label><span>Учеников: <b>${students.length} / 20</b></span></div>
       <div class="staff-columns"><section class="dash-card"><h3>Назначить игровое ДЗ</h3><p>Сейчас игры ещё не подключены. Назначения и место для результатов уже подготовлены.</p><form id="assign-form" class="account-form compact-form"><label>Тема<select name="topic">${lessonData.map((lesson, i) => `<option value="${i + 1}">§ ${i + 1} · ${esc(lesson.title)}</option>`).join('')}</select></label><label>Игра<select name="game"><option value="truth">Правда или ложь</option><option value="crossword">Кроссворд</option><option value="walk">Бродилка</option><option value="quiz">Тест</option></select></label><label class="class-b-date">Срок для 5Б<input type="date" name="due_date"></label><p class="form-hint">Для 5А срок автоматически устанавливается на ближайшую среду. Для 5Б можно указать дату вручную.</p><button class="account-primary" type="submit">Назначить ДЗ</button><p class="account-feedback" aria-live="polite"></p></form></section>
-      <section class="dash-card"><h3>Ученики · ${esc(classFilter)}</h3>${students.length ? `<div class="student-list">${students.map(s => `<div><span>${esc(s.name)}</span><small>${session.user.role === 'admin' ? `<button class="text-action" data-delete-student="${esc(s.id)}">Удалить</button>` : 'ученик'}</small></div>`).join('')}</div>` : '<p class="empty-state">В этом классе пока никто не зарегистрировался.</p>'}</section></div>
+      <section class="dash-card"><h3>Ученики · ${esc(classFilter)}</h3>${session.user.role === 'admin' && adminNotice ? `<div class="admin-password-notice" role="status"><span>${esc(adminNotice.message)}</span>${adminNotice.password ? `<code>${esc(adminNotice.password)}</code><button class="account-button" type="button" data-copy-password>Копировать пароль</button>` : ''}</div>` : ''}${students.length ? `<div class="student-list">${students.map(s => `<div class="student-list-item"><span>${esc(s.name)}</span><div class="student-actions">${session.user.role === 'admin' ? `<button class="text-action" data-temp-password="${esc(s.id)}">Временный пароль</button><button class="text-action" data-set-password="${esc(s.id)}">Постоянный пароль</button><button class="text-action" data-delete-student="${esc(s.id)}">Удалить</button>` : '<small>ученик</small>'}</div></div>`).join('')}</div>` : '<p class="empty-state">В этом классе пока никто не зарегистрировался.</p>'}</section></div>
       <section class="dash-section"><h3>Домашние задания · ${esc(classFilter)}</h3>${homes.length ? `<div class="assignment-list">${homes.map(h => `<article class="assignment-row"><div><strong>§ ${h.topic_id} · ${esc(lessonTitle(h.topic_id))}</strong><span>${esc(gamesLabel(h.game))} · назначено ${esc(formatDate(h.created_at?.slice(0, 10)))}</span></div><span>${esc(formatDate(h.due_date))}</span><button class="text-action" data-toggle-homework="${esc(h.id)}" data-active="${h.active}">${h.active ? 'Закрыть' : 'Открыть'}</button></article>`).join('')}</div>` : '<p class="empty-state">Заданий пока нет.</p>'}</section>
       <section class="dash-section"><h3>Результаты учеников</h3>${results.length ? `<div class="table-wrap account-results"><table><thead><tr><th>Ученик</th><th>Тема / игра</th><th>Результат</th><th>Статус</th></tr></thead><tbody>${results.map(r => `<tr><td>${esc(r.student_name)} · ${esc(r.class)}</td><td>§ ${r.topic_id} · ${esc(gamesLabel(r.game))}</td><td>${r.score == null ? '—' : `${Number(r.score)}%`}</td><td>${esc(r.status)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty-state">Результаты появятся здесь после того, как игры будут подключены и ученики начнут их проходить.</p>'}</section></section>`;
   }
@@ -117,7 +143,7 @@
   function drawDashboard() {
     const dashboard = session.user.role === 'student' ? studentDashboard() : teacherDashboard();
     modal.innerHTML = `<div class="account-shell dashboard-shell"><button class="dialog-close" type="button" aria-label="Закрыть" data-close>×</button>${dashboard}</div>`;
-    modal.querySelector('[data-close]')?.addEventListener('click', () => modal.close());
+    modal.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => modal.close()));
     modal.querySelectorAll('[data-go-lesson]').forEach(link => link.addEventListener('click', () => modal.close()));
     modal.querySelector('#dash-class')?.addEventListener('change', () => drawDashboard());
     modal.querySelector('#assign-form')?.addEventListener('submit', assignHomework);
@@ -130,7 +156,40 @@
       try { await api('delete_student', { id: button.dataset.deleteStudent }); await refreshDashboard(); }
       catch (error) { alert(error.message); }
     }));
+    modal.querySelector('[data-copy-password]')?.addEventListener('click', async button => {
+      try { await navigator.clipboard.writeText(adminNotice.password); button.currentTarget.textContent = 'Скопировано'; }
+      catch { button.currentTarget.textContent = 'Выдели пароль и скопируй'; }
+    });
+    modal.querySelectorAll('[data-temp-password]').forEach(button => button.addEventListener('click', async () => {
+      const student = (dash.students || []).find(s => s.id === button.dataset.tempPassword);
+      try {
+        const result = await api('manage_student_password', { id: button.dataset.tempPassword, mode: 'temporary' });
+        adminNotice = { message: `Временный пароль для ${student?.name || 'ученика'} (показывается только сейчас):`, password: result.temporary_password };
+        await refreshDashboard();
+      } catch (error) { alert(error.message); }
+    }));
+    modal.querySelectorAll('[data-set-password]').forEach(button => button.addEventListener('click', () => {
+      const row = button.closest('.student-list-item');
+      if (row.querySelector('.admin-password-form')) return;
+      row.insertAdjacentHTML('beforeend', `<form class="admin-password-form" data-student-id="${esc(button.dataset.setPassword)}"><label>Новый постоянный пароль<input name="password" type="password" required minlength="6" maxlength="128" autocomplete="new-password"></label><label>Повтори пароль<input name="confirm" type="password" required minlength="6" maxlength="128" autocomplete="new-password"></label><button class="account-primary" type="submit">Сохранить</button><button class="text-action" type="button" data-cancel-password>Отмена</button><p class="account-feedback" aria-live="polite"></p></form>`);
+      const form = row.querySelector('.admin-password-form');
+      form.querySelector('[data-cancel-password]').addEventListener('click', () => form.remove());
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const data = Object.fromEntries(new FormData(form).entries());
+        const feedback = form.querySelector('.account-feedback');
+        if (data.password !== data.confirm) { feedback.textContent = 'Пароли не совпадают.'; return; }
+        const submit = form.querySelector('[type="submit"]'); submit.disabled = true;
+        try {
+          await api('manage_student_password', { id: form.dataset.studentId, mode: 'permanent', password: data.password });
+          adminNotice = { message: `Постоянный пароль для ${studentName(button.dataset.setPassword)} установлен.` };
+          await refreshDashboard();
+        } catch (error) { feedback.textContent = error.message; submit.disabled = false; }
+      });
+    }));
   }
+
+  function studentName(id) { return (dash?.students || []).find(s => s.id === id)?.name || 'ученика'; }
 
   async function assignHomework(event) {
     event.preventDefault();
