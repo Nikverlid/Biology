@@ -100,6 +100,20 @@ async function action(body: any, token: string, ip: string) {
     await sql`delete from biology.sessions where account_id=${u.id} and token_hash<>${tokenHash}`;
     return { ok: true, user: publicUser(updated) };
   }
+  if (body.action === 'game_rosters') {
+    if (!staff) fail('Нет доступа.');
+    const rows = await sql`select class,names from biology.game_rosters`;
+    return { rosters: Object.fromEntries(rows.map(r => [r.class,r.names])) };
+  }
+  if (body.action === 'save_game_roster') {
+    if (!staff) fail('Нет доступа.');
+    const cls = String(body.class ?? '');
+    const names = Array.isArray(body.names) ? body.names.map(clean) : [];
+    if (!['5А','5Б'].includes(cls) || names.length < 1 || names.length > 20 || names.some(n => !n || n.length > 40) || new Set(names.map(n => n.toLowerCase())).size !== names.length) fail('Проверьте класс и список участников.');
+    await sql`insert into biology.game_rosters(class,names,updated_by,updated_at) values(${cls},${sql.json(names)},${u.id},now())
+      on conflict(class) do update set names=excluded.names,updated_by=excluded.updated_by,updated_at=now()`;
+    return { ok: true, names };
+  }
   if (body.action === 'dashboard') {
     const homework = staff
       ? await sql`select h.*,a.name as assigned_by from biology.homework h left join biology.accounts a on a.id=h.created_by order by h.created_at desc`

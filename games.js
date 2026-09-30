@@ -24,8 +24,8 @@
     const bank=banks[lessonId], terms=shuffle(bank).slice(0,10);
     const offset=1+Math.floor(Math.random()*(bank.length-1));
     return shuffle(terms.flatMap(item=>[
-      {text:`${item.answer}: ${item.clue}`,answer:true},
-      {text:`${item.answer}: ${bank[(bank.indexOf(item)+offset)%bank.length].clue}`,answer:false}
+      {text:`${item.answer}: ${item.clue}`,answer:true,explanation:`${item.answer} — ${item.clue}`},
+      {text:`${item.answer}: ${bank[(bank.indexOf(item)+offset)%bank.length].clue}`,answer:false,explanation:`${item.answer} — ${item.clue}`}
     ]));
   }
   function crosswordVariant(lessonId) {
@@ -45,12 +45,16 @@
         root.querySelector('[data-game-restart]').addEventListener('click',()=>statementGame(lessonId,root,homework,onFinish));
         return;
       }
-      const q=questions[index];
-      root.innerHTML=`<div class="game-play"><p class="eyebrow">Правда или ложь · вопрос ${index+1} из ${questions.length}</p><div class="game-progress"><span style="width:${index/questions.length*100}%"></span></div><h3>${escapeHTML(q.text)}</h3><div class="game-answers"><button type="button" data-answer="true">Правда</button><button type="button" data-answer="false">Ложь</button></div><p class="game-feedback" aria-live="polite"></p></div>`;
+      const q=questions[index];let answered=false;
+      root.innerHTML=`<div class="game-play truth-play"><p class="eyebrow">Правда или ложь · вопрос ${index+1} из ${questions.length}</p><div class="game-progress"><span style="width:${index/questions.length*100}%"></span></div><h3>${escapeHTML(q.text)}</h3><div class="game-answers truth-answers"><button type="button" data-answer="true"><span aria-hidden="true">✓</span>Правда</button><button type="button" data-answer="false"><span aria-hidden="true">×</span>Ложь</button></div><div class="game-feedback" aria-live="polite"></div></div>`;
       root.querySelectorAll('[data-answer]').forEach(button=>button.addEventListener('click',()=>{
+        if(answered)return;answered=true;
         const chosen=button.dataset.answer==='true',ok=chosen===q.answer;
         if(ok)correct++;answers.push({text:q.text,truth:q.answer,ok});
-        index++;draw();
+        root.querySelectorAll('[data-answer]').forEach(b=>{b.disabled=true;b.classList.toggle('is-picked',b===button);});
+        const feedback=root.querySelector('.game-feedback');feedback.className='game-feedback '+(ok?'feedback-correct':'feedback-wrong');
+        feedback.innerHTML=`<strong>${ok?'✓ Верно!':'× Ошибка'}</strong><p>${escapeHTML(q.explanation)}</p><button type="button" class="account-primary" data-truth-next>${index===questions.length-1?'Посмотреть результат':'Следующий вопрос →'}</button>`;
+        feedback.querySelector('button').onclick=()=>{index++;draw();};
       }));
     }
     draw();
@@ -110,7 +114,13 @@
     const check=()=>{
       if(revealed)return;
       let solved=0;
-      puzzle.placements.forEach((p,i)=>{const ok=readAnswer(p)===p.word;if(ok)solved++;for(const cell of p.cells){const input=root.querySelector(`[data-cell="${cell.r},${cell.c}"]`);input?.classList.toggle('correct',ok);input?.classList.toggle('incorrect',!ok);}});
+      const cellResults=new Map();
+      puzzle.placements.forEach((p,i)=>{const ok=readAnswer(p)===p.word;if(ok)solved++;
+        const clue=root.querySelector(`[data-focus-word="${i}"]`);clue.classList.toggle('clue-correct',ok);clue.classList.toggle('clue-wrong',!ok);
+        clue.querySelector('.clue-result')?.remove();clue.insertAdjacentHTML('afterbegin',`<span class="clue-result">${ok?'✓ Верно':'× Проверь'} </span>`);
+        for(const cell of p.cells){const key=`${cell.r},${cell.c}`;cellResults.set(key,(cellResults.get(key)??true)&&ok);}
+      });
+      for(const [key,ok] of cellResults){const input=root.querySelector(`[data-cell="${key}"]`);input.classList.toggle('correct',ok);input.classList.toggle('incorrect',!ok);}
       const score=Math.round(solved/puzzle.placements.length*100);
       root.querySelector('.crossword-feedback').textContent=`Верно заполнено слов: ${solved} из ${puzzle.placements.length} (${score}%).`;
       if(solved===puzzle.placements.length){root.querySelector('.crossword-feedback').textContent+=' Отлично!';}

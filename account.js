@@ -8,6 +8,19 @@
   let dash = null;
   let busy = false;
   let adminNotice = null;
+  let activeGameScreen = null;
+  function leaveGameFullscreen() {
+    const screen=activeGameScreen;
+    screen?.classList.remove('game-expanded');
+    document.body.classList.remove('has-expanded-game');
+    const button=screen?.querySelector('[data-fullscreen]');
+    if(button){button.textContent='На весь экран';button.setAttribute('aria-pressed','false');}
+    if(screen && document.fullscreenElement===screen)document.exitFullscreen?.().catch(()=>{});
+  }
+  document.addEventListener('fullscreenchange',()=>{
+    if(!document.fullscreenElement)leaveGameFullscreen();
+  });
+  window.addEventListener('keydown',event=>{if(event.key==='Escape'&&!document.fullscreenElement)leaveGameFullscreen();});
 
   const controls = document.createElement('div');
   controls.className = 'account-controls';
@@ -234,6 +247,7 @@
   function renderGameGate() {
     const match = location.hash.match(/^#lesson-(\d+)/);
     const content = document.querySelector('.lesson-content');
+    if(activeGameScreen&&!activeGameScreen.isConnected){leaveGameFullscreen();activeGameScreen=null;}
     if (!match || !content) return;
     const topic = Number(match[1]);
     const staff = ['teacher', 'admin'].includes(session?.user?.role);
@@ -247,24 +261,36 @@
       if(/\/(section-\d+|terms|summary)$/.test(location.hash))hub.showText();
       return;
     }
-    hub?.remove();
+    if(hub){leaveGameFullscreen();activeGameScreen=null;hub.remove();}
     hub=document.createElement('section');
     hub.className='lesson-activities';hub.dataset.identity=identity;
-    const games=[['truth','Правда или ложь','20 утверждений','✓ / ×'],['crossword','Кроссворд','10 слов в каждом варианте','▦'],['own','Своя игра','Табло вопросов и очки','100'],['wheel','Колесо фортуны','Барабан, буквы и слова','◉']];
+    const games=[['truth','Правда или ложь','20 утверждений','✓ / ×'],['crossword','Кроссворд','10 слов в каждом варианте','▦'],['own','Своя игра','Табло вопросов и очки','100'],['wheel','Колесо фортуны',staff?'Выбор участника и вопросы':'Барабан, буквы и слова','◉']];
     const canPlay=game=>staff||assigned.some(h=>h.game===game);
-    hub.innerHTML=`<div class="lesson-choice"><p class="eyebrow">Выбери занятие</p><div class="activity-grid"><button class="activity-tile activity-text" type="button" data-activity="text"><span class="activity-symbol" aria-hidden="true">Аа</span><strong>Текст темы</strong><small>Объяснение, термины и главное</small><b>Открыть →</b></button>${games.map(([key,name,desc,icon])=>`<button class="activity-tile" type="button" data-activity="${key}" ${canPlay(key)?'':'disabled'}><span class="activity-symbol" aria-hidden="true">${icon}</span><strong>${name}</strong><small>${desc}</small><b>${canPlay(key)?(staff?'Запустить →':'Выполнить ДЗ →'):'Закрыто · ждём ДЗ'}</b></button>`).join('')}</div><p class="form-hint">${staff?'Все игры открыты для проверки и урока. В «Своей игре» и «Колесе фортуны» можно ввести имена участников или команд.':session?'Текст темы открыт всегда. Игры открывает учитель, назначая домашнее задание.':'Текст темы открыт всем. Войди в аккаунт, чтобы открыть назначенные игры.'}</p></div><button class="account-button activity-back" type="button" hidden>← К выбору занятия</button><div class="activity-play" hidden></div>`;
+    hub.innerHTML=`<div class="lesson-choice"><p class="eyebrow">Выбери занятие</p><div class="activity-grid"><button class="activity-tile activity-text" type="button" data-activity="text"><span class="activity-symbol" aria-hidden="true">Аа</span><strong>Текст темы</strong><small>Объяснение, термины и главное</small><b>Открыть →</b></button>${games.map(([key,name,desc,icon])=>`<button class="activity-tile" type="button" data-activity="${key}" ${canPlay(key)?'':'disabled'}><span class="activity-symbol" aria-hidden="true">${icon}</span><strong>${name}</strong><small>${desc}</small><b>${canPlay(key)?(staff?'Запустить →':'Выполнить ДЗ →'):'Закрыто · ждём ДЗ'}</b></button>`).join('')}</div><p class="form-hint">${staff?'Все игры открыты для урока: «Своя игра» — для команд, колесо — с сохранёнными списками участников.':session?'Текст темы открыт всегда. Игры открывает учитель, назначая домашнее задание.':'Текст темы открыт всем. Войди в аккаунт, чтобы открыть назначенные игры.'}</p></div><button class="account-button activity-back" type="button" hidden>← К выбору занятия</button><div class="activity-play" hidden></div>`;
     content.querySelector('.lesson-intro').after(hub);
     const choice=hub.querySelector('.lesson-choice'),play=hub.querySelector('.activity-play'),back=hub.querySelector('.activity-back');
     function menu(){
+      leaveGameFullscreen();activeGameScreen=null;
       choice.hidden=false;back.hidden=true;play.hidden=true;play.replaceChildren();text.hidden=true;layout.classList.add('is-activity');
     }
-    hub.showText=()=>{choice.hidden=true;back.hidden=false;play.hidden=true;play.replaceChildren();text.hidden=false;layout.classList.remove('is-activity');};
+    hub.showText=()=>{leaveGameFullscreen();activeGameScreen=null;choice.hidden=true;back.hidden=false;play.hidden=true;play.replaceChildren();text.hidden=false;layout.classList.remove('is-activity');};
     back.onclick=()=>{menu();hub.querySelector('[data-activity="text"]').focus();};
     hub.querySelector('[data-activity="text"]').onclick=hub.showText;
     hub.querySelectorAll('[data-activity]:not([data-activity="text"])').forEach(button=>button.addEventListener('click',()=>{
       const game=button.dataset.activity;if(!canPlay(game))return;
       choice.hidden=true;back.hidden=false;text.hidden=true;play.hidden=false;layout.classList.add('is-activity');
-      const homework=staff?{id:null,classroom:true}: {...assigned.find(h=>h.game===game),playerName:session.user.name};
+      const homework=staff?{id:null,classroom:true,rosterApi:api}: {...assigned.find(h=>h.game===game),playerName:session.user.name};
+      back.hidden=true;
+      play.innerHTML=`<div class="game-screen"><header class="game-toolbar"><strong>${esc(games.find(g=>g[0]===game)[1])}</strong><div><button class="account-button" type="button" data-fullscreen aria-pressed="false">На весь экран</button><button class="account-button" type="button" data-game-exit>← К выбору</button></div></header><div class="game-screen-body" tabindex="-1"></div></div>`;
+      const screen=play.querySelector('.game-screen'),gameRoot=play.querySelector('.game-screen-body');activeGameScreen=screen;
+      screen.querySelector('[data-game-exit]').onclick=()=>{menu();button.focus();};
+      screen.querySelector('[data-fullscreen]').onclick=async()=>{
+        if(screen.classList.contains('game-expanded')){leaveGameFullscreen();return;}
+        screen.classList.add('game-expanded');document.body.classList.add('has-expanded-game');
+        const control=screen.querySelector('[data-fullscreen]');control.textContent='Свернуть';control.setAttribute('aria-pressed','true');
+        if(screen.requestFullscreen)try{await screen.requestFullscreen({navigationUI:'hide'});}catch{/* Keep the viewport-wide mode on unsupported devices. */}
+        gameRoot.focus({preventScroll:true});
+      };
       const finish=staff?()=>{const status=play.querySelector('.game-save-status');if(status)status.textContent='Проверка игры: результат не записывается ученикам.';}:async result=>{
         const status=play.querySelector('.game-save-status');
         if(status)status.textContent='Сохраняю результат…';
@@ -272,8 +298,8 @@
         catch(error){if(status)status.textContent=`Результат не удалось сохранить: ${error.message}`;}
       };
       const methods={truth:'statementGame',crossword:'crosswordGame',own:'ownGame',wheel:'wheelGame'};
-      window.BIOLOGY_GAMES[methods[game]](topic,play,homework,finish);
-      back.focus({preventScroll:true});
+      window.BIOLOGY_GAMES[methods[game]](topic,gameRoot,homework,finish);
+      screen.querySelector('[data-fullscreen]').focus({preventScroll:true});
     }));
     if(/\/(section-\d+|terms|summary)$/.test(location.hash))hub.showText();else menu();
   }
