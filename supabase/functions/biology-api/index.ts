@@ -19,9 +19,9 @@ async function passwordHash(password: string, secret: string) {
 const clean = (value: unknown) => String(value ?? '').trim().replace(/\s+/g, ' ');
 const publicUser = (u: any) => ({ id: u.id, login: u.login, name: u.name, class: u.class, role: u.role, must_change_password: !!u.must_change_password });
 const fail = (message: string): never => { throw new Error(message); };
-const allowedGames = ['truth', 'crossword', 'own', 'wheel'];
-const gameTotals: Record<string, number> = { truth: 20, crossword: 10, own: 15, wheel: 5 };
-const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', wheel: 'Колесо фортуны', own: 'Своя игра', walk: 'Бродилка (старое задание)', quiz: 'Тест (старое задание)' };
+const allowedGames = ['truth', 'crossword', 'own', 'wheel', 'microscope'];
+const gameTotals: Record<string, number> = { truth: 20, crossword: 10, own: 15, wheel: 5, microscope: 5 };
+const gameNames: Record<string, string> = { truth: 'Правда или ложь', crossword: 'Кроссворд', wheel: 'Колесо фортуны', own: 'Своя игра', microscope: 'Микроскоп', walk: 'Бродилка (старое задание)', quiz: 'Тест (старое задание)' };
 function temporaryPassword() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -131,6 +131,7 @@ async function action(body: any, token: string, ip: string) {
     if (!staff) fail('Нет доступа.');
     const cls = String(body.class ?? ''), topic = Number(body.topic), game = String(body.game ?? '');
     if (!['5А', '5Б'].includes(cls) || !Number.isInteger(topic) || topic < 1 || topic > 27 || !allowedGames.includes(game)) fail('Проверьте класс, тему и игру.');
+    if (game === 'microscope' && ![9,10,14,21,22].includes(topic)) fail('Микроскоп доступен в темах 9, 10, 14, 21 и 22.');
     const dueDate = cls === '5А' ? nextWednesday() : (body.due_date || null);
     const [created] = await sql`insert into biology.homework(class,topic_id,game,due_date,created_by)
       values(${cls},${topic},${game},${dueDate},${u.id}) returning *`;
@@ -146,6 +147,7 @@ async function action(body: any, token: string, ip: string) {
     const homeworkId = String(body.homework_id ?? ''), topic = Number(body.topic_id), game = String(body.game ?? '');
     const score = Number(body.score), correct = Number(body.correct), wrong = Number(body.wrong);
     if (!allowedGames.includes(game) || !Number.isInteger(topic) || !Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(correct) || correct < 0 || !Number.isInteger(wrong) || wrong < 0 || correct + wrong !== gameTotals[game]) fail('Некорректный результат игры.');
+    if (game === 'microscope' && ![9,10,14,21,22].includes(topic)) fail('Для этой темы нет игры «Микроскоп».');
     const [homework] = await sql`select * from biology.homework where id=${homeworkId} and class=${u.class} and active and topic_id=${topic} and game=${game}`;
     if (!homework) fail('Это задание не назначено вашему классу или уже закрыто.');
     const expectedScore = Math.round(correct / (correct + wrong) * 100);

@@ -110,3 +110,36 @@
 .cross-term-hint a{display:block;padding:12px;background:#fff0cf;border:1px solid #e5b460;border-radius:10px;color:#724004;text-decoration:none;font-weight:750}
 .cross-term-hint a:hover{background:#ffe2a4;text-decoration:underline}
 .crossword-clues .cross-term-hint small{display:block;white-space:normal;font-size:.75rem;font-weight:500;margin-top:4px;color:#825a24}
+
+/* Interactive microscope laboratory */
+.activity-tile[data-activity="microscope"]{background:#e6f6fc;border-color:#79c9db;color:#164f6c}
+.microscope-lab{max-width:1150px;margin:auto;color:#24365e;line-height:1.6}
+.microscope-lab h2{font-size:clamp(1.7rem,3vw,2.5rem);margin:0 0 12px;color:#24365e}
+.microscope-lab h3{font-size:clamp(1.2rem,2vw,1.65rem);line-height:1.35;margin:8px 0 20px}
+.microscope-lab button{font:inherit;cursor:pointer;transition:background .15s,box-shadow .15s}
+.microscope-lab button:focus-visible,.microscope-lab input:focus-visible{outline:3px solid #eea923;outline-offset:4px}
+.lab-intro,.lab-setup-grid,.lab-observation-grid{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:28px;align-items:center}
+.lab-intro{background:linear-gradient(135deg,#e8f5fc,#f0eafe);border-radius:24px;padding:24px;margin-top:24px}
+.lab-intro svg,.lab-machine svg{width:100%;max-height:350px;display:block}
+.lab-intro li{margin:8px 0}.lab-intro ul{padding-left:22px}
+.lab-steps{padding:0;margin:0 0 26px;list-style:none;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.lab-steps li{display:flex;align-items:center;gap:8px;background:#edf0f8;border-radius:12px;padding:12px 8px;font-size:.85rem;font-weight:700;line-height:1.25}
+.lab-steps li span{display:grid;place-items:center;flex-shrink:0;width:27px;height:27px;border-radius:50%;background:white}
+.lab-steps li.current{background:#ffe6a4;color:#674800}.lab-steps li.done{background:#cff2e2;color:#11634f}
+.lab-machine{text-align:center;background:#eeeaff;border-radius:24px;padding:24px}.lab-machine p{font-weight:700}
+.lab-question{min-width:0}.lab-options{display:grid;gap:12px}
+.lab-options button{width:100%;border:2px solid #b5c9ec;border-radius:16px;background:#eef5ff;color:#24365e;padding:16px 20px;text-align:left;font-weight:700;line-height:1.4}
+.lab-options button:not(:disabled):hover{background:#dbe9ff;border-color:#5c83c8}
+.lab-options button:disabled{opacity:1;cursor:default}.lab-options button.lab-answer-correct{background:#c7f1df;border-color:#1a9772;color:#0a513c}.lab-options button.lab-answer-wrong{background:#ffdadb;border-color:#db5466;color:#8b2233}
+.lab-feedback:not(:empty){border-radius:16px;padding:16px;margin-top:16px}.lab-feedback p{margin:8px 0 12px}.lab-feedback .account-primary{margin-top:4px}
+.lab-unlocked{display:flex;align-items:center;justify-content:space-between;gap:16px}.lab-unlocked>span{background:#d0f3df;color:#11634f;padding:10px 20px;border-radius:18px;text-align:center;font-size:1.6rem;font-weight:800;line-height:1.2}.lab-unlocked small{font-size:.72rem}
+.lab-sample-tabs{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 24px}.lab-sample-tabs button,.lab-feature-buttons button{border:2px solid #b7c9e7;background:white;color:#29446e;border-radius:14px;padding:10px 15px;font-weight:700;text-align:left}.lab-sample-tabs button[aria-pressed="true"]{background:#355b9c;color:white;border-color:#355b9c}
+.lab-observation-grid{align-items:start}.lab-view-panel{background:#e8f0fa;border-radius:24px;padding:20px;min-width:0}
+.lab-eyepiece{width:min(100%,410px);aspect-ratio:1;margin:auto;border:14px solid #263759;border-radius:50%;overflow:hidden;box-shadow:0 0 0 5px #7a91b3,0 12px 25px #253a5e25;background:#f8f4dd;isolation:isolate}.lab-optics{width:100%;height:100%;overflow:hidden}.lab-specimen{width:100%;height:100%;display:block;transform-origin:center}.lab-specimen .lab-part-active{stroke:#f26522;stroke-width:6;filter:drop-shadow(0 0 4px #ffbe47)}
+.lab-model-note{font-size:.78rem;text-align:center;color:#4b607e;margin:14px 0}
+.lab-controls{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lab-controls label{display:flex;flex-direction:column;gap:6px;font-weight:700;font-size:.88rem;min-width:0}.lab-controls label:first-child{grid-column:1/-1}.lab-controls input{width:100%;accent-color:#526ac2;min-height:25px}.lab-controls output{font-size:.76rem;font-weight:400}
+.lab-notebook{background:#fff9e9;border:1px solid #eddbb2;border-radius:24px;padding:24px;min-width:0}.lab-tag{display:inline-block;color:#6e4a11;background:#ffe6a6;border-radius:8px;padding:3px 10px;font-size:.8rem;font-weight:800}.lab-notebook h3{margin-top:14px}.lab-notebook h4{margin-bottom:10px}.lab-feature-buttons{display:flex;flex-wrap:wrap;gap:8px}.lab-feature-buttons button{font-size:.86rem;padding:9px 12px}.lab-feature-buttons button[aria-pressed="true"]{border-color:#e79f37;background:#fff0cb;color:#70480d}
+.lab-detail{padding:16px;background:white;border-radius:12px;margin:16px 0;font-size:.92rem;border-left:4px solid #ecb645}.lab-detail p{margin:6px 0 0}.lab-topic-link{font-weight:700;color:#345a9b;display:inline-block;margin-top:8px}
+.lab-bottom{display:flex;justify-content:space-between;align-items:center;gap:20px;margin-top:24px}
+@media(min-width:1100px){.game-screen:fullscreen .lab-eyepiece,.game-screen.game-expanded .lab-eyepiece{width:min(100%,440px)}}
+@media(max-width:700px){.lab-intro,.lab-setup-grid,.lab-observation-grid{grid-template-columns:1fr;gap:18px}.lab-intro,.lab-machine,.lab-notebook,.lab-view-panel{padding:18px}.lab-machine svg{max-height:160px}.lab-machine p{display:none}.lab-intro svg{max-height:220px}.lab-steps{gap:4px}.lab-steps li{flex-direction:column;text-align:center;font-size:.62rem;padding:8px 2px}.lab-steps li span{width:23px;height:23px}.lab-bottom{align-items:stretch;flex-direction:column}.lab-eyepiece{border-width:10px}.lab-unlocked>span{padding:10px;font-size:1.2rem}.lab-options button{padding:14px}}
