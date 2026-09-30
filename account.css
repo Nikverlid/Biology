@@ -98,3 +98,15 @@
 .game-expanded .own-board section{height:clamp(310px,calc(100dvh - 350px),720px)}
 @media(min-width:1100px){.game-expanded .class-wheel-layout.has-question{grid-template-columns:minmax(0,2.3fr) minmax(220px,.8fr);gap:20px}.game-expanded .has-question .class-wheel-stage{display:grid;grid-template-columns:minmax(220px,.9fr) minmax(280px,1fr);gap:20px;align-content:start;align-items:start}.game-expanded .has-question .wheel-shell{grid-column:1;grid-row:1;width:100%;margin:20px auto 0}.game-expanded .has-question .wheel-spin{grid-column:1;grid-row:2}.game-expanded .has-question .class-wheel-question{grid-column:2;grid-row:1/span 3;padding-top:20px}.game-expanded .has-question .own-options button{padding:12px}.game-expanded .has-question .class-wheel-roster{padding:14px}}
 @media(min-width:1050px){.game-expanded .crossword-scroll,.game-expanded .crossword-clues{max-height:max(260px,calc(100dvh - 330px));overflow:auto;overscroll-behavior:contain}.game-expanded .crossword-play>.game-answers{margin:12px 0}.game-expanded .crossword-play>.game-save-status,.game-expanded .crossword-play>.crossword-feedback{margin-bottom:8px}}
+.crossword-clues li.cross-clue-row{align-self:start;border-radius:14px;min-width:0}
+.crossword-clues li.cross-clue-row>button:hover{text-decoration:none;color:#7b490d;background:#fff0d2}
+.crossword-clues li.hint-open>button{background:#fff0d2;color:#7b490d;border-radius:12px 12px 0 0}
+.clue-help-label{display:block;font-size:.8rem;font-weight:700;margin-top:8px;color:#925715}
+.cross-term-hint{padding:16px;border:2px solid #f0bc69;border-radius:0 0 14px 14px;background:#fff8e9;color:#623b0c;overflow-wrap:anywhere}
+.cross-term-hint .hint-label{display:block;font-size:.72rem;letter-spacing:.07em;text-transform:uppercase;color:#9b6120;margin-bottom:5px}
+.cross-term-hint>strong{display:block;font-size:1.4rem;line-height:1.25;color:#a75007}
+.cross-term-hint p{font-size:.94rem;margin:10px 0;line-height:1.5}
+.cross-term-hint .hint-source{font-weight:750;padding-top:10px;border-top:1px solid #ebc995}
+.cross-term-hint a{display:block;padding:12px;background:#fff0cf;border:1px solid #e5b460;border-radius:10px;color:#724004;text-decoration:none;font-weight:750}
+.cross-term-hint a:hover{background:#ffe2a4;text-decoration:underline}
+.crossword-clues .cross-term-hint small{display:block;white-space:normal;font-size:.75rem;font-weight:500;margin-top:4px;color:#825a24}

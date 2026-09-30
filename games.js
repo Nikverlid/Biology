@@ -96,6 +96,16 @@
     return {placements,grid,minR,maxR,minC,maxC};
   }
 
+  let crosswordRun = 0;
+  function crosswordHint(lessonId, word) {
+    const item=banks[lessonId].find(entry=>cleanAnswer(entry.answer)===word);
+    const candidates=LESSONS.filter(lesson=>lesson.terms.some(([term])=>cleanAnswer(term)===word));
+    const source=candidates.find(lesson=>lesson.id===lessonId)
+      ||candidates.find(lesson=>lesson.terms.some(([term,definition])=>cleanAnswer(term)===word&&definition===item.clue))
+      ||candidates[0];
+    return {answer:item.answer,definition:item.clue,lessonId:source.id,title:source.title};
+  }
+
   function crosswordGame(lessonId,root,homework,onFinish){
     const selected=crosswordVariant(lessonId);
     const puzzle=makeGrid(selected.words.filter(x=>x.answer.length>=3).map(x=>({word:x.answer,clue:x.clue})));
@@ -104,11 +114,32 @@
     for(let r=puzzle.minR;r<=puzzle.maxR;r++)for(let c=puzzle.minC;c<=puzzle.maxC;c++){
       const cell=puzzle.grid.get(`${r},${c}`);cells.push(cell?`<label class="cross-cell" style="grid-row:${r-puzzle.minR+1};grid-column:${c-puzzle.minC+1}">${number.has(`${r},${c}`)?`<small>${number.get(`${r},${c}`)}</small>`:''}<input aria-label="Буква кроссворда, строка ${r+1}, столбец ${c+1}" maxlength="1" autocomplete="off" autocapitalize="characters" data-cell="${r},${c}"></label>`:`<span class="cross-cell-empty" style="grid-row:${r-puzzle.minR+1};grid-column:${c-puzzle.minC+1}"></span>`);
     }
-    const clues=puzzle.placements.map((p,i)=>`<li><button type="button" data-focus-word="${i}"><b>${i+1}. ${p.dir==='across'?'По горизонтали':'По вертикали'}.</b> ${escapeHTML(p.clue)} <small>(${p.word.length} букв)</small></button></li>`).join('');
-    root.innerHTML=`<div class="crossword-play"><p class="eyebrow">Кроссворд · вариант ${selected.variant} · § ${lessonId}</p><p>Впиши ответы в клетки. Можно пользоваться клавиатурой — после буквы курсор перейдёт дальше.</p><div class="crossword-scroll"><div class="crossword-grid" style="grid-template-columns:repeat(${puzzle.maxC-puzzle.minC+1},34px);grid-template-rows:repeat(${puzzle.maxR-puzzle.minR+1},34px)">${cells.join('')}</div></div><div class="crossword-clues"><ol>${clues}</ol></div><div class="game-answers"><button class="account-primary" type="button" data-check-crossword>Проверить</button><button type="button" data-new-crossword>Новый вариант</button><button type="button" data-reveal-crossword>Показать ответы</button></div><p class="crossword-feedback" role="status"></p><p class="game-save-status" role="status"></p></div>`;
+    const hintPrefix=`cross-hint-${++crosswordRun}`;
+    const clues=puzzle.placements.map((p,i)=>{
+      const hint=crosswordHint(lessonId,p.word);
+      return `<li class="cross-clue-row"><button type="button" data-focus-word="${i}" aria-expanded="false" aria-controls="${hintPrefix}-${i}"><b>${i+1}. ${p.dir==='across'?'По горизонтали':'По вертикали'}.</b> ${escapeHTML(p.clue)} <small>(${p.word.length} букв)</small><span class="clue-help-label">Термин и тема ↓</span></button><div class="cross-term-hint" id="${hintPrefix}-${i}" role="region" aria-label="Подсказка к вопросу ${i+1}" hidden><span class="hint-label">Ответ — термин</span><strong>${escapeHTML(hint.answer)}</strong><p>${escapeHTML(hint.definition)}</p><p class="hint-source">§ ${hint.lessonId}. ${escapeHTML(hint.title)}</p><a href="#lesson-${hint.lessonId}/terms" target="_blank" rel="noopener noreferrer">Открыть словарик темы ↗<small>В новой вкладке · кроссворд останется здесь</small></a></div></li>`;
+    }).join('');
+    root.innerHTML=`<div class="crossword-play"><p class="eyebrow">Кроссворд · вариант ${selected.variant} · § ${lessonId}</p><p>Впиши ответы в клетки. Наведи курсор на вопрос или нажми на него, чтобы увидеть термин и ссылку на словарик. После ввода буквы курсор перейдёт дальше.</p><div class="crossword-scroll"><div class="crossword-grid" style="grid-template-columns:repeat(${puzzle.maxC-puzzle.minC+1},34px);grid-template-rows:repeat(${puzzle.maxR-puzzle.minR+1},34px)">${cells.join('')}</div></div><div class="crossword-clues"><ol>${clues}</ol></div><div class="game-answers"><button class="account-primary" type="button" data-check-crossword>Проверить</button><button type="button" data-new-crossword>Новый вариант</button><button type="button" data-reveal-crossword>Показать ответы</button></div><p class="crossword-feedback" role="status"></p><p class="game-save-status" role="status"></p></div>`;
     const inputs=[...root.querySelectorAll('[data-cell]')];
     let activePlacement=null;
-    root.querySelectorAll('[data-focus-word]').forEach(button=>button.addEventListener('click',()=>{activePlacement=puzzle.placements[Number(button.dataset.focusWord)];const first=activePlacement.cells[0];root.querySelector(`[data-cell="${first.r},${first.c}"]`)?.focus();}));
+    root.querySelectorAll('.cross-clue-row').forEach(row=>{
+      const button=row.querySelector('[data-focus-word]'),hint=row.querySelector('.cross-term-hint');
+      let pinned=false;
+      function show(open){
+        hint.hidden=!open;button.setAttribute('aria-expanded',String(open));row.classList.toggle('hint-open',open);
+        if(open)activePlacement=puzzle.placements[Number(button.dataset.focusWord)];
+      }
+      row.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')show(true);});
+      row.addEventListener('pointerleave',event=>{if(event.pointerType==='mouse'&&!pinned&&!row.contains(document.activeElement))show(false);});
+      row.addEventListener('focusin',()=>show(true));
+      row.addEventListener('focusout',event=>{if(!pinned&&!row.contains(event.relatedTarget))show(false);});
+      button.addEventListener('click',()=>{pinned=!pinned;show(pinned);});
+      row.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();pinned=false;button.focus({preventScroll:true});show(false);}});
+    });
+    inputs.forEach(input=>input.addEventListener('focus',()=>{
+      const hasCell=p=>p.cells.some(cell=>`${cell.r},${cell.c}`===input.dataset.cell);
+      if(!activePlacement||!hasCell(activePlacement))activePlacement=puzzle.placements.find(hasCell);
+    }));
     const readAnswer=p=>p.cells.map(cell=>root.querySelector(`[data-cell="${cell.r},${cell.c}"]`)?.value||'').join('').toLocaleUpperCase('ru-RU').replace(/Ё/g,'Е');
     let revealed=false;
     const check=()=>{
@@ -131,8 +162,12 @@
     root.querySelector('[data-new-crossword]').addEventListener('click',()=>crosswordGame(lessonId,root,homework,onFinish));
     root.querySelector('[data-reveal-crossword]').addEventListener('click',()=>{revealed=true;for(const p of puzzle.placements)p.cells.forEach((cell,i)=>{const input=root.querySelector(`[data-cell="${cell.r},${cell.c}"]`);input.value=p.word[i];input.readOnly=true;});root.querySelector('[data-check-crossword]').disabled=true;root.querySelector('[data-reveal-crossword]').disabled=true;root.querySelector('.crossword-feedback').textContent='Ответы показаны. Это задание не будет засчитано.';});
     inputs.forEach(input=>input.addEventListener('input',()=>{input.value=cleanAnswer(input.value).slice(-1);if(input.value){const coordinate=input.dataset.cell;const path=activePlacement?.cells||[];const at=path.findIndex(cell=>`${cell.r},${cell.c}`===coordinate);if(at>=0&&path[at+1])root.querySelector(`[data-cell="${path[at+1].r},${path[at+1].c}"]`)?.focus();else{const idx=inputs.indexOf(input);inputs[idx+1]?.focus();}}}));
-    puzzle.placements.forEach(p=>p.cells.forEach((cell,i)=>{const input=root.querySelector(`[data-cell="${cell.r},${cell.c}"]`);input.addEventListener('keydown',e=>{if(e.key==='Backspace'&&!input.value&&i>0){e.preventDefault();root.querySelector(`[data-cell="${p.cells[i-1].r},${p.cells[i-1].c}"]`)?.focus();}});}));
+    inputs.forEach(input=>input.addEventListener('keydown',e=>{
+      if(e.key!=='Backspace'||input.value||!activePlacement)return;
+      const cells=activePlacement.cells,i=cells.findIndex(cell=>`${cell.r},${cell.c}`===input.dataset.cell);
+      if(i>0){e.preventDefault();root.querySelector(`[data-cell="${cells[i-1].r},${cells[i-1].c}"]`)?.focus();}
+    }));
   }
 
-  window.BIOLOGY_GAMES={banks,statementGame,crosswordGame,makeGrid,truthQuestions,crosswordVariant};
+  window.BIOLOGY_GAMES={banks,statementGame,crosswordGame,makeGrid,truthQuestions,crosswordVariant,crosswordHint};
 })();
